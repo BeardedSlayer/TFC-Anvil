@@ -8,7 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [SavedResultEntity::class, FolderEntity::class], version = 2, exportSchema = false)
+@Database(entities = [SavedResultEntity::class, FolderEntity::class], version = 3, exportSchema = false)
 @TypeConverters(ActionListConverter::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun savedResultDao(): SavedResultDao
@@ -25,7 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "anvil_calc_database"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 INSTANCE = instance
                 instance
@@ -42,6 +42,23 @@ abstract class AppDatabase : RoomDatabase() {
                 // Добавляем колонку folderId в таблицу saved_results
                 database.execSQL(
                     "ALTER TABLE `saved_results` ADD COLUMN `folderId` INTEGER"
+                )
+            }
+        }
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Добавляем поля для калькулятора сплавов
+                database.execSQL(
+                    "ALTER TABLE `saved_results` ADD COLUMN `calcTotalUnits` INTEGER"
+                )
+                database.execSQL(
+                    "ALTER TABLE `saved_results` ADD COLUMN `calcMaxPerItem` INTEGER"
+                )
+                database.execSQL(
+                    "ALTER TABLE `saved_results` ADD COLUMN `calcAutoPickEnabled` INTEGER"
+                )
+                database.execSQL(
+                    "ALTER TABLE `saved_results` ADD COLUMN `calcComponentsJson` TEXT"
                 )
             }
         }
