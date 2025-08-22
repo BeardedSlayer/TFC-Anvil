@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.tfcanvilcalc.data.AppDatabase
 import com.example.tfcanvilcalc.data.SavedResultEntity
 import com.example.tfcanvilcalc.data.FolderEntity
+import com.example.tfcanvilcalc.data.CalcComponent
+import com.example.tfcanvilcalc.data.toJson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -40,7 +42,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             targetNumber = entity.targetNumber,
                             actions = entity.actions,
                             solution = entity.solution,
-                            folderId = entity.folderId
+                            folderId = entity.folderId,
+                            calcTotalUnits = entity.calcTotalUnits,
+                            calcMaxPerItem = entity.calcMaxPerItem,
+                            calcAutoPickEnabled = entity.calcAutoPickEnabled,
+                            calcComponentsJson = entity.calcComponentsJson
                         )
                     }
                 )}
@@ -234,7 +240,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 targetNumber = result.targetNumber,
                 actions = result.actions,
                 solution = result.solution,
-                folderId = result.folderId
+                folderId = result.folderId,
+                calcTotalUnits = result.calcTotalUnits,
+                calcMaxPerItem = result.calcMaxPerItem,
+                calcAutoPickEnabled = result.calcAutoPickEnabled,
+                calcComponentsJson = result.calcComponentsJson
             ))
         }
     }
@@ -293,5 +303,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleMenu() {
         _state.update { it.copy(isMenuVisible = !it.isMenuVisible) }
+    }
+    
+    // Save calculator result method
+    suspend fun saveCalculatorResult(
+        name: String,
+        totalUnits: Int,
+        maxPerItem: Int,
+        autoPickEnabled: Boolean,
+        components: List<CalcComponent>,
+        folderId: Int? = null
+    ) {
+        val result = SavedResultEntity(
+            name = name,
+            targetNumber = totalUnits, // Use totalUnits as targetNumber for display
+            actions = emptyList(), // Empty for calculator results
+            solution = emptyList(), // Empty for calculator results
+            folderId = folderId,
+            calcTotalUnits = totalUnits,
+            calcMaxPerItem = maxPerItem,
+            calcAutoPickEnabled = autoPickEnabled,
+            calcComponentsJson = components.toJson()
+        )
+        dao.insertOrUpdate(result)
     }
 } 

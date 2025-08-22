@@ -25,4 +25,13 @@ interface SavedResultDao {
     
     @Query("UPDATE saved_results SET folderId = :folderId WHERE id = :resultId")
     suspend fun moveResultToFolder(resultId: Int, folderId: Int?)
+    
+    @Query("SELECT * FROM saved_results WHERE name LIKE '%' || :query || '%'")
+    fun searchByName(query: String): Flow<List<SavedResultEntity>>
+    
+    @Query("SELECT * FROM saved_results WHERE calcComponentsJson LIKE '%' || :query || '%'")
+    fun searchByComponentSubstring(query: String): Flow<List<SavedResultEntity>>
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdate(result: SavedResultEntity): Long
 } 

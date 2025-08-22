@@ -30,16 +30,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Science
+import com.example.tfcanvilcalc.ui.alloy.AlloyMixerScreen
+import com.example.tfcanvilcalc.data.toCalcComponents
 import kotlin.math.abs
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
 
-enum class MainTab { HOME, SAVED, SEARCH }
+enum class MainTab { HOME, SAVED, SEARCH, ALLOY }
 
 @Composable
 fun DraggableResultCard(
@@ -165,6 +169,7 @@ fun BottomNavigationBar(
     onHomeClick: () -> Unit,
     onSavedClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onAlloyClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -201,6 +206,13 @@ fun BottomNavigationBar(
                         tint = if (selectedTab == MainTab.SEARCH) Color(0xFFB388FF) else Color.Gray
                     )
                 }
+                IconButton(onClick = onAlloyClick) {
+                    Icon(
+                        Icons.Filled.Science,
+                        contentDescription = "Alloy Mixer",
+                        tint = if (selectedTab == MainTab.ALLOY) Color(0xFFB388FF) else Color.Gray
+                    )
+                }
             }
             
             // Индикатор страниц
@@ -210,11 +222,12 @@ fun BottomNavigationBar(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
-                repeat(3) { index ->
+                repeat(4) { index ->
                     val isSelected = when (index) {
                         0 -> selectedTab == MainTab.HOME
                         1 -> selectedTab == MainTab.SAVED
                         2 -> selectedTab == MainTab.SEARCH
+                        3 -> selectedTab == MainTab.ALLOY
                         else -> false
                     }
                     
@@ -503,62 +516,171 @@ fun SavedResultsMenu(
     selectedFolder: Folder?,
     onSelectedFolderChange: (Folder?) -> Unit,
     onDismiss: () -> Unit,
+    isVisible: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var editingResult by remember { mutableStateOf<SavedResult?>(null) }
     var editingName by remember { mutableStateOf("") }
     var resultToDelete by remember { mutableStateOf<SavedResult?>(null) }
     var moveTargetResult by remember { mutableStateOf<SavedResult?>(null) }
-    var folderToDelete by remember { mutableStateOf<Folder?>(null) } // для подтверждения удаления папки
+    var folderToDelete by remember { mutableStateOf<Folder?>(null) }
+    
+    // Visibility-based state reset for keep-alive scenarios
+    LaunchedEffect(isVisible) {
+        if (!isVisible) {
+            // Close all local dialog/selection states when screen becomes invisible
+            editingResult = null
+            editingName = ""
+            resultToDelete = null
+            moveTargetResult = null
+            folderToDelete = null
+            // Note: External states are managed by parent component
+        }
+    }
+    
+    // Early return if not visible (for keep-alive scenarios)
+    if (!isVisible) return
+    
+    // Guaranteed state reset on screen hide/change
+    DisposableEffect(Unit) {
+        onDispose {
+            editingResult = null
+            editingName = ""
+            resultToDelete = null
+            moveTargetResult = null
+            folderToDelete = null
+            onResultSelect(null)
+            onShowCreateFolderDialogChange(false)
+            onNewFolderNameChange("")
+            onSelectedFolderChange(null)
+        }
+    }
+    
+    // Defer heavy UI until data stabilization
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.yield()
+        ready = true
+    }
+    if (!ready) {
+        Box(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Загрузка…", color = Color.Gray)
+        }
+        return
+    }
+    
+    // Авто-сброс "висящих" стейтов при изменении входных списков
+    LaunchedEffect(results, folders) {
+        // Enhanced reset for data changes (combines both soft reset and hanging state cleanup)
+        editingResult = null
+        editingName = ""
+        resultToDelete = null
+        moveTargetResult = null
+        folderToDelete = null
+        onResultSelect(null)
+        onShowCreateFolderDialogChange(false)
+        onNewFolderNameChange("")
+        onSelectedFolderChange(null)
+        
+        // Also check for orphaned states
+        if (selectedResult?.let { sel -> results.none { it.id == sel.id } } == true) {
+            onResultSelect(null)
+        }
+    }
+    
+    // Делаем "безопасные" копии списков, чтобы избежать ConcurrentModification
+    val safeResults = remember(results) { results.toList() }
+    val safeFolders = remember(folders) { folders.toList() }
 
-    Column(
+    // Диагностика дубликатов ID
+    LaunchedEffect(safeResults) {
+        val ids = mutableSetOf<Int>()
+        safeResults.forEach {
+            if (!ids.add(it.id)) {
+                println("DUPLICATE RESULT ID: ${it.id}")
+            }
+        }
+    }
+    LaunchedEffect(safeFolders) {
+        val ids = mutableSetOf<Int>()
+        safeFolders.forEach {
+            if (!ids.add(it.id)) {
+                println("DUPLICATE FOLDER ID: ${it.id}")
+            }
+        }
+    }
+
+    // Безопасное вычисление resultsToShow без мутации исходных коллекций
+    val resultsToShow = remember(safeResults, selectedFolder) {
+        if (selectedFolder != null) {
+            safeResults.filter { it.folderId == selectedFolder.id }
+        } else {
+            safeResults.filter { it.folderId == null }
+        }
+    }
+
+    LazyColumn(
         modifier = modifier
             .fillMaxWidth(0.95f)
             .padding(top = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        // --- Заголовок ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (selectedFolder != null) "Папка: ${selectedFolder.name}" else "Сохранённые результаты",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
-            if (selectedFolder == null) {
-                NeonButton(
-                    onClick = {
-                        onShowCreateFolderDialogChange(true)
-                        onNewFolderNameChange("")
-                    },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Создать папку", tint = Color.White)
+        // Заголовок
+        item(key = "sr_header") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (selectedFolder != null) "Папка: ${selectedFolder.name}" else "Сохранённые результаты",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
-            } else {
-                TextButton(onClick = { onSelectedFolderChange(null) }) {
-                    Text("Назад", color = MaterialTheme.colorScheme.primary)
+                if (selectedFolder == null) {
+                    NeonButton(
+                        onClick = {
+                            onShowCreateFolderDialogChange(true)
+                            onNewFolderNameChange("")
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Создать папку", tint = Color.White)
+                    }
+                } else {
+                    TextButton(onClick = { onSelectedFolderChange(null) }) {
+                        Text("Назад", color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        item(key = "sr_header_spacer") {
+            Spacer(Modifier.height(16.dp))
+        }
 
         // Список папок
-        if (selectedFolder == null && folders.isNotEmpty()) {
-            Text("Папки:", color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(8.dp))
-            folders.forEach { folder ->
+        if (selectedFolder == null && safeFolders.isNotEmpty()) {
+            item(key = "sr_folders_title") {
+                Text("Папки:", color = MaterialTheme.colorScheme.primary)
+            }
+            
+            item(key = "sr_folders_title_spacer") {
+                Spacer(Modifier.height(8.dp))
+            }
+            
+            items(safeFolders, key = { folder -> "sr_folder_${folder.id}" }) { folder ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = { onFolderClick(folder) },
+                    onClick = { 
+                        val current = safeFolders.firstOrNull { it.id == folder.id } ?: return@Card
+                        onFolderClick(current) 
+                    },
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
                 ) {
                     Row(
@@ -569,76 +691,99 @@ fun SavedResultsMenu(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(folder.name, color = MaterialTheme.colorScheme.primary)
-                        IconButton(onClick = { folderToDelete = folder }) { // теперь с подтверждением
+                        IconButton(onClick = { 
+                            val current = safeFolders.firstOrNull { it.id == folder.id } ?: return@IconButton
+                            folderToDelete = current 
+                        }) {
                             Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            
+            item(key = "sr_folders_spacer") {
+                Spacer(Modifier.height(16.dp))
+            }
         }
 
         // Результаты
-        val resultsToShow = if (selectedFolder != null) {
-            results.filter { it.folderId == selectedFolder.id }
-        } else {
-            results.filter { it.folderId == null }
-        }
-
         if (resultsToShow.isEmpty()) {
-            Text("Нет сохранённых результатов", color = Color.White)
+            item(key = "sr_no_results") {
+                Text("Нет сохранённых результатов", color = Color.White)
+            }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(resultsToShow) { result ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onResultSelect(result) },
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
-                    ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(result.name, color = MaterialTheme.colorScheme.primary)
-                                Row {
-                                    IconButton(onClick = {
-                                        editingResult = result
-                                        editingName = result.name
-                                    }) {
-                                        Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    IconButton(onClick = { moveTargetResult = result }) {
-                                        Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    IconButton(onClick = { resultToDelete = result }) {
-                                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                    }
+            items(resultsToShow, key = { res -> "sr_result_${res.id}" }) { result ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val current = safeResults.firstOrNull { it.id == result.id } ?: return@Card
+                        onResultSelect(current)
+                    },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(result.name, color = MaterialTheme.colorScheme.primary)
+                            Row {
+                                IconButton(onClick = {
+                                    val current = safeResults.firstOrNull { it.id == result.id } ?: return@IconButton
+                                    editingResult = current
+                                    editingName = current.name
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = {
+                                    val current = safeResults.firstOrNull { it.id == result.id } ?: return@IconButton
+                                    moveTargetResult = current
+                                }) {
+                                    Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = {
+                                    val current = safeResults.firstOrNull { it.id == result.id } ?: return@IconButton
+                                    resultToDelete = current
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                                 }
                             }
-                            Text("Целевое число: ${result.targetNumber}", color = Color.White)
+                        }
+                        Text("Целевое число: ${result.targetNumber}", color = Color.White)
+                        
+                        // Краткая сводка для калькулятора
+                        if (result.calcTotalUnits != null) {
+                            Text("Партия: ${result.calcTotalUnits} слитков", 
+                                color = MaterialTheme.colorScheme.secondary,
+                                style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Закрыть", color = MaterialTheme.colorScheme.primary)
+        // Кнопка закрыть
+        item(key = "sr_close_button") {
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Закрыть", color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 
-    // --- Диалог подтверждения удаления результата ---
-    if (resultToDelete != null) {
+    // Диалог подтверждения удаления результата
+    val resultToDeleteCurrent = remember(resultToDelete, safeResults) {
+        safeResults.firstOrNull { it.id == resultToDelete?.id }
+    }
+    if (resultToDeleteCurrent != null) {
         AlertDialog(
             onDismissRequest = { resultToDelete = null },
             containerColor = Color.Black,
             title = { Text("Подтверждение удаления", color = Color.White) },
-            text = { Text("Удалить «${resultToDelete?.name}»?", color = Color.White) },
+            text = { Text("Удалить «${resultToDeleteCurrent.name}»?", color = Color.White) },
             confirmButton = {
                 TextButton(onClick = {
-                    resultToDelete?.let { onDelete(it) }
+                    onDelete(resultToDeleteCurrent)
                     resultToDelete = null
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
@@ -646,18 +791,23 @@ fun SavedResultsMenu(
                 TextButton(onClick = { resultToDelete = null }) { Text("Отмена", color = Color.White) }
             }
         )
+    } else if (resultToDelete != null) {
+        resultToDelete = null
     }
 
-    // --- Диалог подтверждения удаления папки ---
-    if (folderToDelete != null) {
+    // Диалог подтверждения удаления папки
+    val folderToDeleteCurrent = remember(folderToDelete, safeFolders) {
+        safeFolders.firstOrNull { it.id == folderToDelete?.id }
+    }
+    if (folderToDeleteCurrent != null) {
         AlertDialog(
             onDismissRequest = { folderToDelete = null },
             containerColor = Color.Black,
             title = { Text("Подтверждение удаления", color = Color.White) },
-            text = { Text("Удалить папку «${folderToDelete?.name}»?", color = Color.White) },
+            text = { Text("Удалить папку «${folderToDeleteCurrent.name}»?", color = Color.White) },
             confirmButton = {
                 TextButton(onClick = {
-                    folderToDelete?.let { onDeleteFolder(it) }
+                    onDeleteFolder(folderToDeleteCurrent)
                     folderToDelete = null
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
@@ -667,10 +817,15 @@ fun SavedResultsMenu(
                 }
             }
         )
+    } else if (folderToDelete != null) {
+        folderToDelete = null
     }
 
-    // --- Диалог редактирования результата ---
-    if (editingResult != null) {
+    // Диалог редактирования результата
+    val editingCurrent = remember(editingResult, safeResults) {
+        safeResults.firstOrNull { it.id == editingResult?.id }
+    }
+    if (editingCurrent != null) {
         AlertDialog(
             onDismissRequest = { editingResult = null },
             containerColor = Color.Black,
@@ -689,7 +844,7 @@ fun SavedResultsMenu(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    editingResult?.let { onEditName(it, editingName) }
+                    onEditName(editingCurrent, editingName)
                     editingResult = null
                 }) { Text("Сохранить", color = Color.White) }
             },
@@ -697,37 +852,54 @@ fun SavedResultsMenu(
                 TextButton(onClick = { editingResult = null }) { Text("Отмена", color = Color.White) }
             }
         )
+    } else if (editingResult != null) {
+        editingResult = null
     }
 
-    // --- Диалог перемещения в папку ---
-    if (moveTargetResult != null) {
+    // Диалог перемещения в папку с LazyColumn и ограничением высоты
+    val moveTargetCurrent = remember(moveTargetResult, safeResults) {
+        safeResults.firstOrNull { it.id == moveTargetResult?.id }
+    }
+    if (moveTargetCurrent != null) {
         AlertDialog(
             onDismissRequest = { moveTargetResult = null },
             containerColor = Color.Black,
             title = { Text("Переместить в папку", color = Color.White) },
             text = {
                 Column {
-                    if (folders.isEmpty()) {
+                    if (safeFolders.isEmpty()) {
                         Text("Нет доступных папок", color = Color.Gray)
                     } else {
-                        folders.forEach { folder ->
-                            TextButton(onClick = {
-                                moveTargetResult?.let {
-                                    onMoveToFolder(it, folder.id)
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                        ) {
+                            items(safeFolders, key = { folder -> "sr_dialog_folder_${folder.id}" }) { folder ->
+                                TextButton(
+                                    onClick = {
+                                        onMoveToFolder(moveTargetCurrent, folder.id)
+                                        moveTargetResult = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        folder.name, 
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
-                                moveTargetResult = null
-                            }) {
-                                Text(folder.name, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    TextButton(onClick = {
-                        moveTargetResult?.let {
-                            onMoveToFolder(it, null)
-                        }
-                        moveTargetResult = null
-                    }) {
+                    TextButton(
+                        onClick = {
+                            onMoveToFolder(moveTargetCurrent, null)
+                            moveTargetResult = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text("Без папки", color = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -738,9 +910,11 @@ fun SavedResultsMenu(
                 }
             }
         )
+    } else if (moveTargetResult != null) {
+        moveTargetResult = null
     }
 
-    // --- Диалог создания папки ---
+    // Диалог создания папки
     if (showCreateFolderDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -793,6 +967,7 @@ fun SearchScreen(
     onDismiss: () -> Unit,
     onEditName: (SavedResult, String) -> Unit,
     onDelete: (SavedResult) -> Unit,
+    isVisible: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -800,9 +975,86 @@ fun SearchScreen(
     var editingResult by remember { mutableStateOf<SavedResult?>(null) }
     var editingName by remember { mutableStateOf("") }
     var resultToDelete by remember { mutableStateOf<SavedResult?>(null) } // подтверждение удаления
+    
+    // Visibility-based state reset for keep-alive scenarios
+    LaunchedEffect(isVisible) {
+        if (!isVisible) {
+            // Close all local dialog/selection states when screen becomes invisible
+            selectedResult = null
+            editingResult = null
+            editingName = ""
+            resultToDelete = null
+            // Optional: reset search query
+            // searchQuery = ""
+        }
+    }
+    
+    // Early return if not visible (for keep-alive scenarios)
+    if (!isVisible) return
+    
+    // Guaranteed state reset on screen hide/change
+    DisposableEffect(Unit) {
+        onDispose {
+            // Close all local dialog/selection states
+            selectedResult = null
+            editingResult = null
+            editingName = ""
+            resultToDelete = null
+            // Optional: reset search query (uncomment if needed)
+            // searchQuery = ""
+        }
+    }
+    
+    // Defer heavy UI until data stabilization
+    var ready by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.yield()
+        ready = true
+    }
+    if (!ready) {
+        Box(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Загрузка…", color = Color.Gray)
+        }
+        return
+    }
+    
+    // Делаем "безопасные" копии списков
+    val safeResults = remember(results) { results.toList() }
+    val safeFolders = remember(folders) { folders.toList() }
+    
+    // Диагностика дубликатов ID
+    LaunchedEffect(safeResults) {
+        val ids = mutableSetOf<Int>()
+        safeResults.forEach {
+            if (!ids.add(it.id)) {
+                println("DUPLICATE RESULT ID: ${it.id}")
+            }
+        }
+    }
+    LaunchedEffect(safeFolders) {
+        val ids = mutableSetOf<Int>()
+        safeFolders.forEach {
+            if (!ids.add(it.id)) {
+                println("DUPLICATE FOLDER ID: ${it.id}")
+            }
+        }
+    }
+    
+    // Сброс "висящих" стейтов при изменении входов
+    LaunchedEffect(safeResults, safeFolders) {
+        if (selectedResult?.let { sel -> safeResults.none { it.id == sel.id } } == true) {
+            selectedResult = null
+        }
+        if (editingResult?.let { er -> safeResults.none { it.id == er.id } } == true) {
+            editingResult = null
+        }
+        if (resultToDelete?.let { dr -> safeResults.none { it.id == dr.id } } == true) {
+            resultToDelete = null
+        }
+    }
 
     val filteredResults = if (searchQuery.isBlank()) emptyList()
-    else results.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    else safeResults.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
@@ -835,10 +1087,13 @@ fun SearchScreen(
                 Text("Результаты не найдены", color = Color.White)
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filteredResults) { result ->
+                    items(filteredResults, key = { res -> "search_result_${res.id}" }) { result ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = { selectedResult = result },
+                            onClick = {
+                                val current = safeResults.firstOrNull { it.id == result.id } ?: return@Card
+                                selectedResult = current
+                            },
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
                         ) {
                             Column(Modifier.padding(12.dp)) {
@@ -849,19 +1104,23 @@ fun SearchScreen(
                                     Text(result.name, color = MaterialTheme.colorScheme.primary)
                                     Row {
                                         IconButton(onClick = {
-                                            editingResult = result
-                                            editingName = result.name
+                                            val current = safeResults.firstOrNull { it.id == result.id } ?: return@IconButton
+                                            editingResult = current
+                                            editingName = current.name
                                         }) {
                                             Icon(Icons.Filled.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                         }
-                                        IconButton(onClick = { resultToDelete = result }) {
+                                        IconButton(onClick = {
+                                            val current = safeResults.firstOrNull { it.id == result.id } ?: return@IconButton
+                                            resultToDelete = current
+                                        }) {
                                             Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                                         }
                                     }
                                 }
                                 Text("Целевое число: ${result.targetNumber}", color = Color.White)
                                 if (result.folderId != null) {
-                                    val folderName = folders.find { it.id == result.folderId }?.name ?: "Неизвестно"
+                                    val folderName = safeFolders.find { it.id == result.folderId }?.name ?: "Неизвестно"
                                     Text("В папке: $folderName", color = Color.White, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
@@ -877,15 +1136,18 @@ fun SearchScreen(
     }
 
     // Диалог удаления
-    if (resultToDelete != null) {
+    val toDelete = remember(resultToDelete, safeResults) {
+        safeResults.firstOrNull { it.id == resultToDelete?.id }
+    }
+    if (toDelete != null) {
         AlertDialog(
             onDismissRequest = { resultToDelete = null },
             containerColor = Color.Black,
             title = { Text("Подтверждение удаления", color = Color.White) },
-            text = { Text("Вы действительно хотите удалить \"${resultToDelete?.name}\"?", color = Color.White) },
+            text = { Text("Вы действительно хотите удалить \"${toDelete.name}\"?", color = Color.White) },
             confirmButton = {
                 TextButton(onClick = {
-                    resultToDelete?.let { onDelete(it) }
+                    onDelete(toDelete)
                     resultToDelete = null
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
@@ -893,32 +1155,76 @@ fun SearchScreen(
                 TextButton(onClick = { resultToDelete = null }) { Text("Отмена", color = Color.White) }
             }
         )
+    } else if (resultToDelete != null) {
+        resultToDelete = null
     }
 
     // Диалог просмотра результата
-    if (selectedResult != null) {
+    val selected = remember(selectedResult, safeResults) {
+        safeResults.firstOrNull { it.id == selectedResult?.id }
+    }
+    if (selected != null) {
         AlertDialog(
             onDismissRequest = { selectedResult = null },
             containerColor = Color.Black,
-            title = { Text(selectedResult!!.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) },
+            title = { Text(selected.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Целевое число: ${selectedResult!!.targetNumber}", style = MaterialTheme.typography.bodyLarge, color = Color.White)
-                    Text("Последние действия:", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                    selectedResult!!.actions.forEach { Text("• ${it.title} (${it.value})", color = Color.White) }
-                    Text("Решение:", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                    selectedResult!!.solution.forEachIndexed { i, a -> Text("${i + 1}. ${a.title} (${a.value})", color = Color.White) }
-                    Text("Итоговая сумма: ${selectedResult!!.solution.sumOf { it.value }}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Целевое число: ${selected.targetNumber}", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    
+                    // Если это результат калькулятора сплавов
+                    if (selected.calcComponentsJson != null) {
+                        Text("Состав партии (из сохранения):", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                        selected.calcTotalUnits?.let { total ->
+                            Text("Партия: $total слитков", color = Color.White)
+                        }
+                        
+                        val calcComponents = selected.calcComponentsJson!!.toCalcComponents()
+                        calcComponents.forEach { component ->
+                            Text("${component.name}: ${component.count} ед. (${"%.1f".format(component.percent)}%)", color = Color.White)
+                        }
+                        
+                        selected.calcMaxPerItem?.let { maxPer ->
+                            Text("Макс. на партию: $maxPer", color = Color.White)
+                        }
+                        
+                        selected.calcAutoPickEnabled?.let { autoPick ->
+                            Text("Автоподбор: ${if (autoPick) "Да" else "Нет"}", color = Color.White)
+                        }
+                        
+                        // Разделитель если есть также старые поля
+                        if (selected.actions.isNotEmpty() || selected.solution.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                    
+                    // Оригинальные поля (если есть)
+                    if (selected.actions.isNotEmpty()) {
+                        Text("Последние действия:", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                        selected.actions.forEach { Text("• ${it.title} (${it.value})", color = Color.White) }
+                    }
+                    if (selected.solution.isNotEmpty()) {
+                        Text("Решение:", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                        selected.solution.forEachIndexed { i, a -> Text("${i + 1}. ${a.title} (${a.value})", color = Color.White) }
+                        Text("Итоговая сумма: ${selected.solution.sumOf { it.value }}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { selectedResult = null }) { Text("Закрыть", color = Color.White) }
             }
         )
+    } else if (selectedResult != null) {
+        selectedResult = null
     }
 
     // Диалог редактирования
-    if (editingResult != null) {
+    val editing = remember(editingResult, safeResults) {
+        safeResults.firstOrNull { it.id == editingResult?.id }
+    }
+    if (editing != null) {
         AlertDialog(
             onDismissRequest = { editingResult = null },
             containerColor = Color.Black,
@@ -942,7 +1248,7 @@ fun SearchScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    editingResult?.let { onEditName(it, editingName) }
+                    onEditName(editing, editingName)
                     editingResult = null
                 }) { Text("Сохранить", color = Color.White) }
             },
@@ -950,6 +1256,8 @@ fun SearchScreen(
                 TextButton(onClick = { editingResult = null }) { Text("Отмена", color = Color.White) }
             }
         )
+    } else if (editingResult != null) {
+        editingResult = null
     }
 }
 
@@ -969,7 +1277,7 @@ fun MainRootScreen(
     var newFolderName by remember { mutableStateOf("") }
     var selectedFolder by remember { mutableStateOf<Folder?>(null) }
 
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 4 })
 
     // Главная логика переключения — быстрый jump через среднее
     LaunchedEffect(currentTab) {
@@ -978,6 +1286,7 @@ fun MainRootScreen(
             MainTab.HOME -> 0
             MainTab.SAVED -> 1
             MainTab.SEARCH -> 2
+            MainTab.ALLOY -> 3
         }
         if (currentPage == targetPage) return@LaunchedEffect
 
@@ -997,6 +1306,7 @@ fun MainRootScreen(
             0 -> MainTab.HOME
             1 -> MainTab.SAVED
             2 -> MainTab.SEARCH
+            3 -> MainTab.ALLOY
             else -> MainTab.HOME
         }
     }
@@ -1005,9 +1315,38 @@ fun MainRootScreen(
         bottomBar = {
             BottomNavigationBar(
                 selectedTab = currentTab,
-                onHomeClick = { currentTab = MainTab.HOME },
-                onSavedClick = { currentTab = MainTab.SAVED },
-                onSearchClick = { currentTab = MainTab.SEARCH }
+                onHomeClick = { 
+                    // Reset external states before switching
+                    selectedResult = null
+                    showCreateFolderDialog = false
+                    newFolderName = ""
+                    selectedFolder = null
+                    currentTab = MainTab.HOME 
+                },
+                onSavedClick = { 
+                    // Reset external states before switching
+                    selectedResult = null
+                    showCreateFolderDialog = false
+                    newFolderName = ""
+                    selectedFolder = null
+                    currentTab = MainTab.SAVED 
+                },
+                onSearchClick = { 
+                    // Reset external states before switching
+                    selectedResult = null
+                    showCreateFolderDialog = false
+                    newFolderName = ""
+                    selectedFolder = null
+                    currentTab = MainTab.SEARCH 
+                },
+                onAlloyClick = { 
+                    // Reset external states before switching
+                    selectedResult = null
+                    showCreateFolderDialog = false
+                    newFolderName = ""
+                    selectedFolder = null
+                    currentTab = MainTab.ALLOY 
+                }
             )
         },
         containerColor = Color.Black
@@ -1064,6 +1403,7 @@ fun MainRootScreen(
                         selectedFolder = selectedFolder,
                         onSelectedFolderChange = { selectedFolder = it },
                         onDismiss = { currentTab = MainTab.HOME },
+                        isVisible = currentTab == MainTab.SAVED,
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
@@ -1079,10 +1419,19 @@ fun MainRootScreen(
                             viewModel.updateResultName(result, newName)
                         },
                         onDelete = { viewModel.deleteResult(it) },
+                        isVisible = currentTab == MainTab.SEARCH,
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
                             .wrapContentSize(Alignment.Center)
+                    )
+
+                    // --- Конструктор сплавов ---
+                    3 -> AlloyMixerScreen(
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
                     )
                 }
             }
