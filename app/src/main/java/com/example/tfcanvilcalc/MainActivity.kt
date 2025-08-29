@@ -12,8 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.widthIn
@@ -39,89 +39,47 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Science
 import com.example.tfcanvilcalc.ui.alloy.AlloyMixerScreen
 import com.example.tfcanvilcalc.data.toCalcComponents
+import com.example.tfcanvilcalc.ui.theme.AppTheme
+import com.example.tfcanvilcalc.ui.theme.ThemeMode
+import com.example.tfcanvilcalc.ui.theme.ThemeViewModel
+import com.example.tfcanvilcalc.ui.theme.ThemeSettings
+import com.example.tfcanvilcalc.ui.components.PrimaryButton
+import com.example.tfcanvilcalc.ui.components.PrimaryButtonSlot
+import com.example.tfcanvilcalc.data.ThemePreferences
+import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import android.content.Context
 import kotlin.math.abs
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.ExperimentalFoundationApi
 
-enum class MainTab { HOME, SAVED, SEARCH, ALLOY }
+enum class MainTab { HOME, SAVED, SEARCH, ALLOY, SETTINGS }
 
-@Composable
-fun DraggableResultCard(
-    result: SavedResult,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit,
-    onSelect: () -> Unit,
-    onMoveToFolder: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2A2D3A)
-        ),
-        onClick = onSelect
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = result.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Цель: ${result.targetNumber}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.7f)
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        Icons.Filled.Edit,
-                        contentDescription = "Редактировать",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                IconButton(onClick = onMoveToFolder) {
-                    Icon(
-                        Icons.Filled.Folder,
-                        contentDescription = "Переместить в папку",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Удалить",
-                        tint = Color.Red
-                    )
-                }
-            }
-        }
-    }
-}
+// Extension property for DataStore
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Initialize theme preferences
+        val themePreferences = ThemePreferences(dataStore)
+        
         setContent {
-            val viewModel: MainViewModel = viewModel()
-            val state by viewModel.state.collectAsState()
-            var isDarkTheme by remember { mutableStateOf(true) }
+            val mainViewModel: MainViewModel = viewModel()
+            val themeViewModel: ThemeViewModel = viewModel { ThemeViewModel(themePreferences) }
+            
+            val state by mainViewModel.state.collectAsState()
+            val themeMode by themeViewModel.themeMode.collectAsState()
 
-            MainRootScreen(
-                state = state,
-                viewModel = viewModel,
-                isDarkTheme = isDarkTheme
-            )
+            AppTheme(themeMode = themeMode) {
+                MainRootScreen(
+                    state = state,
+                    viewModel = mainViewModel,
+                    themeViewModel = themeViewModel
+                )
+            }
         }
     }
 }
@@ -170,12 +128,13 @@ fun BottomNavigationBar(
     onSavedClick: () -> Unit,
     onSearchClick: () -> Unit,
     onAlloyClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF181A20))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(8.dp)
             .navigationBarsPadding()
     ) {
@@ -189,28 +148,35 @@ fun BottomNavigationBar(
                     Icon(
                         Icons.Filled.Home,
                         contentDescription = "Home",
-                        tint = if (selectedTab == MainTab.HOME) Color(0xFFB388FF) else Color.Gray
+                        tint = if (selectedTab == MainTab.HOME) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onSavedClick) {
                     Icon(
                         Icons.Filled.Folder,
                         contentDescription = "Saved Results",
-                        tint = if (selectedTab == MainTab.SAVED) Color(0xFFB388FF) else Color.Gray
+                        tint = if (selectedTab == MainTab.SAVED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onSearchClick) {
                     Icon(
                         Icons.Filled.Search,
                         contentDescription = "Search",
-                        tint = if (selectedTab == MainTab.SEARCH) Color(0xFFB388FF) else Color.Gray
+                        tint = if (selectedTab == MainTab.SEARCH) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onAlloyClick) {
                     Icon(
                         Icons.Filled.Science,
                         contentDescription = "Alloy Mixer",
-                        tint = if (selectedTab == MainTab.ALLOY) Color(0xFFB388FF) else Color.Gray
+                        tint = if (selectedTab == MainTab.ALLOY) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = onSettingsClick) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = if (selectedTab == MainTab.SETTINGS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -222,12 +188,13 @@ fun BottomNavigationBar(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
-                repeat(4) { index ->
+                repeat(5) { index ->
                     val isSelected = when (index) {
                         0 -> selectedTab == MainTab.HOME
                         1 -> selectedTab == MainTab.SAVED
                         2 -> selectedTab == MainTab.SEARCH
                         3 -> selectedTab == MainTab.ALLOY
+                        4 -> selectedTab == MainTab.SETTINGS
                         else -> false
                     }
                     
@@ -239,7 +206,7 @@ fun BottomNavigationBar(
                                 height = 8.dp
                             )
                             .background(
-                                color = if (isSelected) Color(0xFFB388FF) else Color.Gray.copy(alpha = 0.5f),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                 shape = RoundedCornerShape(4.dp)
                             )
                     )
@@ -253,15 +220,12 @@ fun BottomNavigationBar(
 fun MainScreen(
     state: MainState,
     viewModel: MainViewModel,
-    isDarkTheme: Boolean,
-    onHomeClick: () -> Unit,
-    onSearchClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -275,8 +239,8 @@ fun MainScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 24.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Black),
-                elevation = CardDefaults.cardElevation(0.dp)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(8.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -295,17 +259,17 @@ fun MainScreen(
                         OutlinedTextField(
                             value = state.targetNumber,
                             onValueChange = { viewModel.onTargetNumberChanged(it) },
-                            label = { Text("Целевое число", color = Color.White) },
+                            label = { Text("Целевое число", color = MaterialTheme.colorScheme.onSurface) },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray,
-                                focusedLabelColor = Color.White,
-                                unfocusedLabelColor = Color.White,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 cursorColor = MaterialTheme.colorScheme.primary,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
 
@@ -326,18 +290,16 @@ fun MainScreen(
                                 val action = actions.getOrNull(index)
 
                                 Box(modifier = Modifier.weight(1f)) {
-                                    NeonButton(
+                                    PrimaryButtonSlot(
                                         onClick = { showDropdown = true },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .widthIn(min = 80.dp)
                                             .height(56.dp)
                                             .padding(horizontal = 2.dp)
                                     ) {
                                         Text(
                                             if (action != null) "(${action.value})" else "${index + 1}",
                                             fontSize = 15.sp,
-                                            color = Color.White,
                                             textAlign = TextAlign.Center,
                                             maxLines = 1,
                                             softWrap = false,
@@ -371,18 +333,17 @@ fun MainScreen(
                         }
 
                         // Кнопка Найти решение
-                        NeonButton(
+                        PrimaryButton(
                             onClick = { viewModel.findSolution() },
                             enabled = state.selectedActions.size == 3 && state.targetNumber.isNotEmpty(),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Найти решение", color = Color.White)
-                        }
+                            modifier = Modifier.fillMaxWidth(),
+                            text = "Найти решение"
+                        )
 
                         // Ошибка
                         if (state.errorMessage != null) {
                             Text(
-                                state.errorMessage ?: "",
+                                state.errorMessage,
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyMedium
                             )
@@ -413,7 +374,7 @@ fun MainScreen(
                                     state.solution.forEachIndexed { idx, act ->
                                         Text(
                                             "${idx + 1}. ${act.title} (${act.value})",
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
@@ -438,7 +399,7 @@ fun MainScreen(
                                         .forEach { (value, actionsGroup) ->
                                             if (actionsGroup.isNotEmpty()) {
                                                 Text("${actionsGroup.size}-($value)",
-                                                    color = Color.White,
+                                                    color = MaterialTheme.colorScheme.onSurface,
                                                     style = MaterialTheme.typography.bodySmall)
                                             }
                                         }
@@ -453,7 +414,7 @@ fun MainScreen(
                                         val count = lastThreeActions.count { it.value == selectedAction.value }
                                         if (count > 0) {
                                             Text("$count-(${selectedAction.value})",
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
@@ -463,7 +424,7 @@ fun MainScreen(
                             Text(
                                 "Итоговая сумма: ${state.solution.sumOf { it.value }}",
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -475,19 +436,17 @@ fun MainScreen(
                             .height(56.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        NeonButton(
+                        PrimaryButton(
                             onClick = { viewModel.saveCurrentResult() },
                             enabled = state.solution.isNotEmpty(),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Сохранить", color = Color.White, textAlign = TextAlign.Center)
-                        }
-                        NeonButton(
+                            modifier = Modifier.weight(1f),
+                            text = "Сохранить"
+                        )
+                        PrimaryButton(
                             onClick = { viewModel.reset() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Сбросить", color = Color.White, textAlign = TextAlign.Center)
-                        }
+                            modifier = Modifier.weight(1f),
+                            text = "Сбросить"
+                        )
                     }
                 }
             }
@@ -564,7 +523,7 @@ fun SavedResultsMenu(
     }
     if (!ready) {
         Box(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Загрузка…", color = Color.Gray)
+            Text("Загрузка…", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -650,7 +609,7 @@ fun SavedResultsMenu(
                         },
                         modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Создать папку", tint = Color.White)
+                        Icon(Icons.Default.Add, contentDescription = "Создать папку", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 } else {
                     TextButton(onClick = { onSelectedFolderChange(null) }) {
@@ -681,7 +640,7 @@ fun SavedResultsMenu(
                         val current = safeFolders.firstOrNull { it.id == folder.id } ?: return@Card
                         onFolderClick(current) 
                     },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
                         modifier = Modifier
@@ -709,7 +668,7 @@ fun SavedResultsMenu(
         // Результаты
         if (resultsToShow.isEmpty()) {
             item(key = "sr_no_results") {
-                Text("Нет сохранённых результатов", color = Color.White)
+                Text("Нет сохранённых результатов", color = MaterialTheme.colorScheme.onSurface)
             }
         } else {
             items(resultsToShow, key = { res -> "sr_result_${res.id}" }) { result ->
@@ -719,7 +678,7 @@ fun SavedResultsMenu(
                         val current = safeResults.firstOrNull { it.id == result.id } ?: return@Card
                         onResultSelect(current)
                     },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Row(
@@ -749,7 +708,7 @@ fun SavedResultsMenu(
                                 }
                             }
                         }
-                        Text("Целевое число: ${result.targetNumber}", color = Color.White)
+                        Text("Целевое число: ${result.targetNumber}", color = MaterialTheme.colorScheme.onSurface)
                         
                         // Краткая сводка для калькулятора
                         if (result.calcTotalUnits != null) {
@@ -778,9 +737,9 @@ fun SavedResultsMenu(
     if (resultToDeleteCurrent != null) {
         AlertDialog(
             onDismissRequest = { resultToDelete = null },
-            containerColor = Color.Black,
-            title = { Text("Подтверждение удаления", color = Color.White) },
-            text = { Text("Удалить «${resultToDeleteCurrent.name}»?", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Подтверждение удаления", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Удалить «${resultToDeleteCurrent.name}»?", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(resultToDeleteCurrent)
@@ -788,7 +747,7 @@ fun SavedResultsMenu(
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { resultToDelete = null }) { Text("Отмена", color = Color.White) }
+                TextButton(onClick = { resultToDelete = null }) { Text("Отмена", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     } else if (resultToDelete != null) {
@@ -802,9 +761,9 @@ fun SavedResultsMenu(
     if (folderToDeleteCurrent != null) {
         AlertDialog(
             onDismissRequest = { folderToDelete = null },
-            containerColor = Color.Black,
-            title = { Text("Подтверждение удаления", color = Color.White) },
-            text = { Text("Удалить папку «${folderToDeleteCurrent.name}»?", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Подтверждение удаления", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Удалить папку «${folderToDeleteCurrent.name}»?", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 TextButton(onClick = {
                     onDeleteFolder(folderToDeleteCurrent)
@@ -813,7 +772,7 @@ fun SavedResultsMenu(
             },
             dismissButton = {
                 TextButton(onClick = { folderToDelete = null }) {
-                    Text("Отмена", color = Color.White)
+                    Text("Отмена", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         )
@@ -828,17 +787,17 @@ fun SavedResultsMenu(
     if (editingCurrent != null) {
         AlertDialog(
             onDismissRequest = { editingResult = null },
-            containerColor = Color.Black,
-            title = { Text("Изменить название", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Изменить название", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 OutlinedTextField(
                     value = editingName,
                     onValueChange = { editingName = it },
-                    label = { Text("Название", color = Color.White) },
-                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                    label = { Text("Название", color = MaterialTheme.colorScheme.onSurface) },
+                    textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Gray
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
             },
@@ -846,10 +805,10 @@ fun SavedResultsMenu(
                 TextButton(onClick = {
                     onEditName(editingCurrent, editingName)
                     editingResult = null
-                }) { Text("Сохранить", color = Color.White) }
+                }) { Text("Сохранить", color = MaterialTheme.colorScheme.onSurface) }
             },
             dismissButton = {
-                TextButton(onClick = { editingResult = null }) { Text("Отмена", color = Color.White) }
+                TextButton(onClick = { editingResult = null }) { Text("Отмена", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     } else if (editingResult != null) {
@@ -863,12 +822,12 @@ fun SavedResultsMenu(
     if (moveTargetCurrent != null) {
         AlertDialog(
             onDismissRequest = { moveTargetResult = null },
-            containerColor = Color.Black,
-            title = { Text("Переместить в папку", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Переместить в папку", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column {
                     if (safeFolders.isEmpty()) {
-                        Text("Нет доступных папок", color = Color.Gray)
+                        Text("Нет доступных папок", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -906,7 +865,7 @@ fun SavedResultsMenu(
             },
             confirmButton = {
                 TextButton(onClick = { moveTargetResult = null }) {
-                    Text("Отмена", color = Color.White)
+                    Text("Отмена", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         )
@@ -921,17 +880,17 @@ fun SavedResultsMenu(
                 onShowCreateFolderDialogChange(false)
                 onNewFolderNameChange("")
             },
-            containerColor = Color.Black,
-            title = { Text("Создать папку", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Создать папку", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 OutlinedTextField(
                     value = newFolderName,
                     onValueChange = onNewFolderNameChange,
-                    label = { Text("Название папки", color = Color.White) },
-                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                    label = { Text("Название папки", color = MaterialTheme.colorScheme.onSurface) },
+                    textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Gray
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
                     )
                 )
             },
@@ -948,7 +907,7 @@ fun SavedResultsMenu(
                 TextButton(onClick = {
                     onShowCreateFolderDialogChange(false)
                     onNewFolderNameChange("")
-                }) { Text("Отмена", color = Color.White) }
+                }) { Text("Отмена", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     }
@@ -1013,7 +972,7 @@ fun SearchScreen(
     }
     if (!ready) {
         Box(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Загрузка…", color = Color.Gray)
+            Text("Загрузка…", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -1059,32 +1018,32 @@ fun SearchScreen(
     Card(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Black)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(24.dp)) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Введите название результата", color = Color.White) },
+                label = { Text("Введите название результата", color = MaterialTheme.colorScheme.onSurface) },
                 modifier = Modifier.fillMaxWidth(),
-                textStyle = LocalTextStyle.current.copy(color = Color.White),
+                textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.Gray,
-                    focusedLabelColor = Color.White,
-                    unfocusedLabelColor = Color.White,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
 
             Spacer(Modifier.height(16.dp))
 
             if (searchQuery.isBlank()) {
-                Text("Введите название для поиска", color = Color.White)
+                Text("Введите название для поиска", color = MaterialTheme.colorScheme.onSurface)
             } else if (filteredResults.isEmpty()) {
-                Text("Результаты не найдены", color = Color.White)
+                Text("Результаты не найдены", color = MaterialTheme.colorScheme.onSurface)
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(filteredResults, key = { res -> "search_result_${res.id}" }) { result ->
@@ -1094,7 +1053,7 @@ fun SearchScreen(
                                 val current = safeResults.firstOrNull { it.id == result.id } ?: return@Card
                                 selectedResult = current
                             },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A))
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Column(Modifier.padding(12.dp)) {
                                 Row(
@@ -1118,10 +1077,10 @@ fun SearchScreen(
                                         }
                                     }
                                 }
-                                Text("Целевое число: ${result.targetNumber}", color = Color.White)
+                                Text("Целевое число: ${result.targetNumber}", color = MaterialTheme.colorScheme.onSurface)
                                 if (result.folderId != null) {
                                     val folderName = safeFolders.find { it.id == result.folderId }?.name ?: "Неизвестно"
-                                    Text("В папке: $folderName", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                                    Text("В папке: $folderName", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
@@ -1142,9 +1101,9 @@ fun SearchScreen(
     if (toDelete != null) {
         AlertDialog(
             onDismissRequest = { resultToDelete = null },
-            containerColor = Color.Black,
-            title = { Text("Подтверждение удаления", color = Color.White) },
-            text = { Text("Вы действительно хотите удалить \"${toDelete.name}\"?", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Подтверждение удаления", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Вы действительно хотите удалить \"${toDelete.name}\"?", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(toDelete)
@@ -1152,7 +1111,7 @@ fun SearchScreen(
                 }) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { resultToDelete = null }) { Text("Отмена", color = Color.White) }
+                TextButton(onClick = { resultToDelete = null }) { Text("Отмена", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     } else if (resultToDelete != null) {
@@ -1166,36 +1125,36 @@ fun SearchScreen(
     if (selected != null) {
         AlertDialog(
             onDismissRequest = { selectedResult = null },
-            containerColor = Color.Black,
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text(selected.name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Целевое число: ${selected.targetNumber}", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    Text("Целевое число: ${selected.targetNumber}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                     
                     // Если это результат калькулятора сплавов
                     if (selected.calcComponentsJson != null) {
                         Text("Состав партии (из сохранения):", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                         selected.calcTotalUnits?.let { total ->
-                            Text("Партия: $total слитков", color = Color.White)
+                            Text("Партия: $total слитков", color = MaterialTheme.colorScheme.onSurface)
                         }
                         
                         val calcComponents = selected.calcComponentsJson!!.toCalcComponents()
                         calcComponents.forEach { component ->
-                            Text("${component.name}: ${component.count} ед. (${"%.1f".format(component.percent)}%)", color = Color.White)
+                            Text("${component.name}: ${component.count} ед. (${"%.1f".format(component.percent)}%)", color = MaterialTheme.colorScheme.onSurface)
                         }
                         
                         selected.calcMaxPerItem?.let { maxPer ->
-                            Text("Макс. на партию: $maxPer", color = Color.White)
+                            Text("Макс. на партию: $maxPer", color = MaterialTheme.colorScheme.onSurface)
                         }
                         
                         selected.calcAutoPickEnabled?.let { autoPick ->
-                            Text("Автоподбор: ${if (autoPick) "Да" else "Нет"}", color = Color.White)
+                            Text("Автоподбор: ${if (autoPick) "Да" else "Нет"}", color = MaterialTheme.colorScheme.onSurface)
                         }
                         
                         // Разделитель если есть также старые поля
                         if (selected.actions.isNotEmpty() || selected.solution.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
@@ -1203,17 +1162,17 @@ fun SearchScreen(
                     // Оригинальные поля (если есть)
                     if (selected.actions.isNotEmpty()) {
                         Text("Последние действия:", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                        selected.actions.forEach { Text("• ${it.title} (${it.value})", color = Color.White) }
+                        selected.actions.forEach { Text("• ${it.title} (${it.value})", color = MaterialTheme.colorScheme.onSurface) }
                     }
                     if (selected.solution.isNotEmpty()) {
                         Text("Решение:", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
-                        selected.solution.forEachIndexed { i, a -> Text("${i + 1}. ${a.title} (${a.value})", color = Color.White) }
+                        selected.solution.forEachIndexed { i, a -> Text("${i + 1}. ${a.title} (${a.value})", color = MaterialTheme.colorScheme.onSurface) }
                         Text("Итоговая сумма: ${selected.solution.sumOf { it.value }}", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedResult = null }) { Text("Закрыть", color = Color.White) }
+                TextButton(onClick = { selectedResult = null }) { Text("Закрыть", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     } else if (selectedResult != null) {
@@ -1227,22 +1186,22 @@ fun SearchScreen(
     if (editing != null) {
         AlertDialog(
             onDismissRequest = { editingResult = null },
-            containerColor = Color.Black,
-            title = { Text("Изменить название", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Изменить название", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 OutlinedTextField(
                     value = editingName,
                     onValueChange = { editingName = it },
-                    label = { Text("Название", color = Color.White) },
-                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                    label = { Text("Название", color = MaterialTheme.colorScheme.onSurface) },
+                    textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = Color.Gray,
                         focusedLabelColor = MaterialTheme.colorScheme.primary,
                         unfocusedLabelColor = Color.Gray,
                         cursorColor = MaterialTheme.colorScheme.primary,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
             },
@@ -1250,10 +1209,10 @@ fun SearchScreen(
                 TextButton(onClick = {
                     onEditName(editing, editingName)
                     editingResult = null
-                }) { Text("Сохранить", color = Color.White) }
+                }) { Text("Сохранить", color = MaterialTheme.colorScheme.onSurface) }
             },
             dismissButton = {
-                TextButton(onClick = { editingResult = null }) { Text("Отмена", color = Color.White) }
+                TextButton(onClick = { editingResult = null }) { Text("Отмена", color = MaterialTheme.colorScheme.onSurface) }
             }
         )
     } else if (editingResult != null) {
@@ -1269,7 +1228,7 @@ fun SearchScreen(
 fun MainRootScreen(
     state: MainState,
     viewModel: MainViewModel,
-    isDarkTheme: Boolean
+    themeViewModel: ThemeViewModel
 ) {
     var currentTab by remember { mutableStateOf(MainTab.HOME) }
     var selectedResult by remember { mutableStateOf<SavedResult?>(null) }
@@ -1277,7 +1236,7 @@ fun MainRootScreen(
     var newFolderName by remember { mutableStateOf("") }
     var selectedFolder by remember { mutableStateOf<Folder?>(null) }
 
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 4 })
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 5 })
 
     // Главная логика переключения — быстрый jump через среднее
     LaunchedEffect(currentTab) {
@@ -1287,6 +1246,7 @@ fun MainRootScreen(
             MainTab.SAVED -> 1
             MainTab.SEARCH -> 2
             MainTab.ALLOY -> 3
+            MainTab.SETTINGS -> 4
         }
         if (currentPage == targetPage) return@LaunchedEffect
 
@@ -1307,6 +1267,7 @@ fun MainRootScreen(
             1 -> MainTab.SAVED
             2 -> MainTab.SEARCH
             3 -> MainTab.ALLOY
+            4 -> MainTab.SETTINGS
             else -> MainTab.HOME
         }
     }
@@ -1346,10 +1307,19 @@ fun MainRootScreen(
                     newFolderName = ""
                     selectedFolder = null
                     currentTab = MainTab.ALLOY 
+                },
+                onSettingsClick = { 
+                    // Reset external states before switching
+                    selectedResult = null
+                    showCreateFolderDialog = false
+                    newFolderName = ""
+                    selectedFolder = null
+                    currentTab = MainTab.SETTINGS 
                 }
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
     ) { innerPadding ->
 
         HorizontalPager(
@@ -1368,9 +1338,6 @@ fun MainRootScreen(
                     0 -> MainScreen(
                         state = state,
                         viewModel = viewModel,
-                        isDarkTheme = isDarkTheme,
-                        onHomeClick = { currentTab = MainTab.HOME },
-                        onSearchClick = { currentTab = MainTab.SEARCH },
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
@@ -1429,6 +1396,14 @@ fun MainRootScreen(
                     // --- Конструктор сплавов ---
                     3 -> AlloyMixerScreen(
                         viewModel = viewModel,
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
+                    )
+                    
+                    // --- Настройки ---
+                    4 -> ThemeSettings(
+                        themeViewModel = themeViewModel,
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize()
