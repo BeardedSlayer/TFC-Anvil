@@ -2,18 +2,25 @@ package com.example.tfcanvilcalc.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Неоновые акценты
-val NeonBlue = Color(0xFF00E5FF)
-val NeonPurple = Color(0xFF9D4BFF)
-val NeonPink = Color(0xFFFF0099)
+// Moonveil & Lilac Mist Color Palette
 
-// Темная тема
-val DarkBackground = Color(0xFF000000)
-val DarkSurface = Color(0xFF121212)
-val DarkError = Color(0xFFCF6679)
+// Primary Colors
+val Moonveil = Color(0xFFF28D42)          // Primary accent - orange
+val LilacMist = Color(0xFFECEAF5)         // Light background
+val LilacMistDark = Color(0xFFE4E0F1)     // Surface/container background
+val DeepPurple = Color(0xFF39393B)        // Main text and dark elements
+val DarkPurpleAlt = Color(0xFF2A2D3A)     // Alternative dark for cards
 
-// Светлая тема
-val LightBlue = Color(0xFFE0F7FA)
-val DarkTeal = Color(0xFF006064)
-val MediumTeal = Color(0xFF00838F)
-val LightTeal = Color(0xFF00ACC1)
+// Supporting Colors
+val PassiveText = Color(0xFF7A7A81)       // Passive/secondary text
+val PureWhite = Color(0xFFFFFFFF)         // Contrast white
+val SoftGray = Color(0xFFB0B0B0)          // Subtle gray for borders
+
+// Error Colors (keeping standard but adapted)
+val ErrorLight = Color(0xFFD32F2F)        // Light theme error
+val ErrorDark = Color(0xFFCF6679)         // Dark theme error
+
+// Dark Theme Variants (inverted palette for dark mode)
+val DarkBackground = Color(0xFF2A2D3A)     // Dark background
+val DarkSurface = Color(0xFF39393B)       // Dark surface
+val LightOnDark = Color(0xFFECEAF5)       // Light text on dark
