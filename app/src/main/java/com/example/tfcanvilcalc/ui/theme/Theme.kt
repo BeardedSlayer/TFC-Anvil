@@ -14,44 +14,74 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = NeonBlue,
-    secondary = NeonPurple,
-    tertiary = NeonPink,
-    background = DarkBackground,
-    surface = DarkSurface,
-    error = DarkError,
-    onPrimary = Color.Black,
-    onSecondary = Color.Black,
-    onTertiary = Color.Black,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    onError = Color.Black,
-    surfaceVariant = Color(0xFF1F1F1F),
-    onSurfaceVariant = Color.White.copy(alpha = 0.7f)
+    primary = Moonveil,                    // F28D42 - Orange accent
+    secondary = LilacMistDark,             // E4E0F1 - Secondary lilac
+    tertiary = PassiveText,                // 7A7A81 - Tertiary gray
+    background = DarkBackground,           // 2A2D3A - Dark background
+    surface = DarkSurface,                 // 39393B - Dark surface
+    error = ErrorDark,                     // CF6679 - Standard dark error
+    onPrimary = PureWhite,                 // FFFFFF - White text on orange
+    onSecondary = DeepPurple,              // 39393B - Dark text on lilac
+    onTertiary = LightOnDark,              // ECEAF5 - Light text on gray
+    onBackground = LightOnDark,            // ECEAF5 - Light text on dark bg
+    onSurface = LightOnDark,               // ECEAF5 - Light text on dark surface
+    onError = PureWhite,                   // FFFFFF - White text on error
+    surfaceVariant = DeepPurple,           // 39393B - Variant surface
+    onSurfaceVariant = LilacMist           // ECEAF5 - Light text on variant
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = DarkTeal,
-    secondary = MediumTeal,
-    tertiary = LightTeal,
-    background = LightBlue,
-    surface = Color(0xFFEEFAFC),
-    error = Color(0xFFB00020),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF001F2A),
-    onSurface = Color(0xFF001F2A),
-    onError = Color.White,
-    surfaceVariant = Color(0xFFE1E1E1),
-    onSurfaceVariant = Color.Black.copy(alpha = 0.7f)
+    primary = Moonveil,                    // F28D42 - Orange accent
+    secondary = LilacMistDark,             // E4E0F1 - Secondary lilac
+    tertiary = SoftGray,                   // B0B0B0 - Tertiary gray
+    background = LilacMist,                // ECEAF5 - Light lilac background
+    surface = LilacMistDark,               // E4E0F1 - Slightly darker surface
+    error = ErrorLight,                    // D32F2F - Standard light error
+    onPrimary = PureWhite,                 // FFFFFF - White text on orange
+    onSecondary = DeepPurple,              // 39393B - Dark text on lilac
+    onTertiary = DeepPurple,               // 39393B - Dark text on gray
+    onBackground = DeepPurple,             // 39393B - Dark text on light bg
+    onSurface = DeepPurple,                // 39393B - Dark text on surface
+    onError = PureWhite,                   // FFFFFF - White text on error
+    surfaceVariant = LilacMist,            // ECEAF5 - Variant surface
+    onSurfaceVariant = PassiveText         // 7A7A81 - Passive text on variant
 )
 
 @Composable
 fun TFCAnvilCalcTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.background.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}
+
+@Composable
+fun AppTheme(
+    themeMode: ThemeMode,
+    content: @Composable () -> Unit
+) {
+    val isSystemDark = isSystemInDarkTheme()
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemDark
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+    }
+    
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     val view = LocalView.current

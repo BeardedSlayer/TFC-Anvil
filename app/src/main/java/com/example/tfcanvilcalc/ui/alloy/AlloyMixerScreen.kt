@@ -193,6 +193,20 @@ fun AlloyMixerScreen(
     modifier: Modifier = Modifier,
     viewModel: MainViewModel = viewModel()
 ) {
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
+        AlloyMixerContent(viewModel = viewModel, modifier = Modifier)
+    }
+}
+
+@Composable
+private fun AlloyMixerContent(
+    viewModel: MainViewModel,
+    modifier: Modifier = Modifier
+) {
     // Initialization gate to prevent crashes during rapid transitions
     var ready by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -235,7 +249,7 @@ fun AlloyMixerScreen(
     val sumMin = components.sumOf { it.minPercent }
     val sumMax = components.sumOf { it.maxPercent }
     val rangesValid = sumMin <= 100.0 && sumMax >= 100.0
-    
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -250,11 +264,12 @@ fun AlloyMixerScreen(
                 fontWeight = FontWeight.Bold
             )
         }
+
         
         // Поля ввода компонента
         item(key = "input-fields") {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(
@@ -270,15 +285,15 @@ fun AlloyMixerScreen(
                     OutlinedTextField(
                         value = metalName,
                         onValueChange = { metalName = it },
-                        label = { Text("Металл", color = Color.White) },
+                        label = { Text("Металл") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             cursorColor = MaterialTheme.colorScheme.primary
                         )
                     )
@@ -290,14 +305,14 @@ fun AlloyMixerScreen(
                         OutlinedTextField(
                             value = minPercent,
                             onValueChange = { minPercent = it },
-                            label = { Text("Мин %", color = Color.White) },
+                            label = { Text("Мин %") },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 cursorColor = MaterialTheme.colorScheme.primary
                             )
                         )
@@ -305,14 +320,14 @@ fun AlloyMixerScreen(
                         OutlinedTextField(
                             value = maxPercent,
                             onValueChange = { maxPercent = it },
-                            label = { Text("Макс %", color = Color.White) },
+                            label = { Text("Макс %") },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 cursorColor = MaterialTheme.colorScheme.primary
                             )
                         )
@@ -371,7 +386,7 @@ fun AlloyMixerScreen(
                     ) {
                         Text(
                             if (editingComponent != null) "Сохранить изменения" else "Добавить компонент",
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                     
@@ -389,7 +404,7 @@ fun AlloyMixerScreen(
                                 containerColor = MaterialTheme.colorScheme.error
                             )
                         ) {
-                            Text("Отменить редактирование", color = Color.White)
+                            Text("Отменить редактирование", color = MaterialTheme.colorScheme.onError)
                         }
                     }
                 }
@@ -401,7 +416,10 @@ fun AlloyMixerScreen(
             item(key = "totals-hint") {
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = if (rangesValid) Color(0xFF2A4D2A) else Color(0xFF4D2A2A)
+                        containerColor = if (rangesValid) 
+                            MaterialTheme.colorScheme.primaryContainer 
+                        else 
+                            MaterialTheme.colorScheme.errorContainer
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
@@ -410,7 +428,7 @@ fun AlloyMixerScreen(
                     ) {
                         Text(
                             text = "Σмин: ${fmt1(sumMin)}%, Σмакс: ${fmt1(sumMax)}%",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         if (!rangesValid) {
@@ -429,7 +447,7 @@ fun AlloyMixerScreen(
         if (components.isNotEmpty()) {
             items(components, key = { comp -> "alloy_component_${comp.id}" }) { component ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -448,7 +466,7 @@ fun AlloyMixerScreen(
                             )
                             Text(
                                 text = "${fmt1(component.minPercent)}% - ${fmt1(component.maxPercent)}%",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -491,7 +509,7 @@ fun AlloyMixerScreen(
         if (components.isNotEmpty()) {
             item(key = "batch-params") {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2D3A)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
@@ -516,7 +534,7 @@ fun AlloyMixerScreen(
                             )
                             Text(
                                 text = "Автоподбор размера партии (до $SAFE_MAX_INGOTS_PER_BATCH слитков)",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -525,14 +543,14 @@ fun AlloyMixerScreen(
                             OutlinedTextField(
                                 value = fixedBatchSize,
                                 onValueChange = { fixedBatchSize = it },
-                                label = { Text("Размер партии (слитков)", color = Color.White) },
+                                label = { Text("Размер партии (слитков)") },
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = Color.Gray,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                     cursorColor = MaterialTheme.colorScheme.primary
                                 )
                             )
@@ -541,14 +559,14 @@ fun AlloyMixerScreen(
                         OutlinedTextField(
                             value = totalIngots,
                             onValueChange = { totalIngots = it },
-                            label = { Text("Нужно слитков сплава", color = Color.White) },
+                            label = { Text("Нужно слитков сплава") },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 cursorColor = MaterialTheme.colorScheme.primary
                             )
                         )
@@ -591,10 +609,10 @@ fun AlloyMixerScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
-                                disabledContainerColor = Color.Gray
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
-                            Text("Рассчитать", color = Color.White)
+                            Text("Рассчитать", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -622,13 +640,13 @@ fun AlloyMixerScreen(
         saveMessage?.let { message ->
             item(key = "save-message") {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A4D2A)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = message,
                         modifier = Modifier.padding(12.dp),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -640,7 +658,7 @@ fun AlloyMixerScreen(
             // Состав одной партии
             item(key = "batch-composition") {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A3D2A)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
@@ -658,7 +676,7 @@ fun AlloyMixerScreen(
                             val percent = item.getPercent(result.baseBatch.P)
                             Text(
                                 text = "${item.name}: ${item.ingots} слитков (${fmt1(percent)}%, ${item.mb} mB)",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -669,7 +687,7 @@ fun AlloyMixerScreen(
             // План на заказ
             item(key = "order-plan") {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2A3D2A)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
@@ -686,7 +704,7 @@ fun AlloyMixerScreen(
                         if (result.fullBatches > 0) {
                             Text(
                                 text = "Полных партий: ${result.fullBatches} × ${result.baseBatch.P} = ${result.fullBatches * result.baseBatch.P} слитков",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -694,20 +712,20 @@ fun AlloyMixerScreen(
                         result.remainderBatch?.let { remainder ->
                             Text(
                                 text = "Мини-партия: ${remainder.P} слитков (~${remainder.totalMB} mB)",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             remainder.items.forEach { item ->
                                 val percent = item.getPercent(remainder.P)
                                 Text(
                                     text = "  ${item.name}: ${item.ingots} слитков (${fmt1(percent)}%, ${item.mb} mB)",
-                                    color = Color.White.copy(alpha = 0.8f),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
                         }
                         
-                        HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                         
                         Text(
                             text = "Итого: ${result.totalIngots} слитков, ${result.totalMB} mB",
@@ -724,7 +742,7 @@ fun AlloyMixerScreen(
                 // TODO: Можно заменить на NeonButton для консистентности стиля
                 Button(
                     onClick = {
-                        saveName = "Сплав ${components.size} компонентов"
+                        saveName = "Сплав "
                         showSaveDialog = true
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -738,7 +756,7 @@ fun AlloyMixerScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Сохранить результат", color = Color.White)
+                    Text("Сохранить результат", color = MaterialTheme.colorScheme.onSecondary)
                 }
             }
             
@@ -746,7 +764,7 @@ fun AlloyMixerScreen(
             if (result.suggestions.isNotEmpty()) {
                 item(key = "suggestions") {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF3D2A2A)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Column(
@@ -762,7 +780,7 @@ fun AlloyMixerScreen(
                             
                             Text(
                                 text = result.suggestions.joinToString(", ") { "$it слитков" },
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -791,19 +809,19 @@ fun AlloyMixerScreen(
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
-            containerColor = Color.Black,
-            title = { Text("Сохранить результат", color = Color.White) },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Сохранить результат", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 OutlinedTextField(
                     value = saveName,
                     onValueChange = { saveName = it },
-                    label = { Text("Название", color = Color.White) },
+                    label = { Text("Название") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Gray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         cursorColor = MaterialTheme.colorScheme.primary
                     )
                 )
@@ -843,12 +861,12 @@ fun AlloyMixerScreen(
                     },
                     enabled = saveName.isNotBlank()
                 ) {
-                    Text("Сохранить", color = Color.White)
+                    Text("Сохранить", color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSaveDialog = false }) {
-                    Text("Отмена", color = Color.White)
+                    Text("Отмена", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         )
